@@ -1,0 +1,400 @@
+// ==========================================
+// CENTRAL CONFIGURATION & CONFIGS
+// ==========================================
+
+const SLACK_BOT_TOKEN = 'Here ';
+const SLACK_CHANNEL_ID = 'Here';
+const SPREADSHEET_ID = 'Here';
+
+const TZ_ET = "America/New_York";
+
+// Optional test date.
+// Leave blank for normal daily use.
+// Example: const TEST_DATE_ET = "2026-06-16";
+const TEST_DATE_ET = "";
+
+// ==========================================
+// FLAG MAP
+// ==========================================
+
+const FLAG_MAP = {
+  "Argentina": ":flag-ar:",
+  "Algeria": ":flag-dz:",
+  "Australia": ":flag-au:",
+  "Austria": ":flag-at:",
+  "Belgium": ":flag-be:",
+  "Brazil": ":flag-br:",
+  "Canada": ":flag-ca:",
+  "Chile": ":flag-cl:",
+  "Colombia": ":flag-co:",
+  "Croatia": ":flag-hr:",
+  "Denmark": ":flag-dk:",
+  "Ecuador": ":flag-ec:",
+  "Egypt": ":flag-eg:",
+  "England": ":flag-england:",
+  "France": ":flag-fr:",
+  "Germany": ":flag-de:",
+  "Ghana": ":flag-gh:",
+  "Iran": ":flag-ir:",
+  "Iraq": ":flag-iq:",
+  "Italy": ":flag-it:",
+  "Japan": ":flag-jp:",
+  "Mexico": ":flag-mx:",
+  "Morocco": ":flag-ma:",
+  "Netherlands": ":flag-nl:",
+  "Norway": ":flag-no:",
+  "Panama": ":flag-pa:",
+  "Paraguay": ":flag-py:",
+  "Portugal": ":flag-pt:",
+  "Qatar": ":flag-qa:",
+  "Saudi Arabia": ":flag-sa:",
+  "Senegal": ":flag-sn:",
+  "South Korea": ":flag-kr:",
+  "Spain": ":flag-es:",
+  "Sweden": ":flag-se:",
+  "Switzerland": ":flag-ch:",
+  "Tunisia": ":flag-tn:",
+  "Türkiye": ":flag-tr:",
+  "Uruguay": ":flag-uy:",
+  "USA": ":flag-us:",
+  "Uzbekistan": ":flag-uz:"
+};
+
+function getFlag(teamName) {
+  if (!teamName) return "⚽";
+  return FLAG_MAP[String(teamName).trim()] || "⚽";
+}
+
+// ==========================================
+// DATE HELPERS
+// ==========================================
+
+function getTargetDateET() {
+  if (TEST_DATE_ET && TEST_DATE_ET.trim() !== "") {
+    return TEST_DATE_ET.trim();
+  }
+
+  return Utilities.formatDate(new Date(), TZ_ET, "yyyy-MM-dd");
+}
+
+function getDisplayDateET(dateString) {
+  const parts = String(dateString).split("-");
+
+  if (parts.length !== 3) {
+    return dateString;
+  }
+
+  const year = Number(parts[0]);
+  const month = Number(parts[1]) - 1;
+  const day = Number(parts[2]);
+
+  const date = new Date(year, month, day);
+
+  return Utilities.formatDate(date, TZ_ET, "EEEE, MMMM d, yyyy");
+}
+
+// ==========================================
+// TIME FORMATTER
+// ==========================================
+
+function formatTimesCleanly(timeStr) {
+  try {
+    let clean = String(timeStr || "").trim().toUpperCase();
+
+    if (!clean) {
+      return {
+        et: "TBD ET",
+        pt: "TBD PT"
+      };
+    }
+
+    let isPM = clean.includes("PM");
+    let isAM = clean.includes("AM");
+
+    let numbers = clean
+      .replace("PM", "")
+      .replace("AM", "")
+      .trim();
+
+    let parts = numbers.split(":");
+    let hr = parseInt(parts[0], 10);
+    let min = parts[1] ? parts[1].substring(0, 2) : "00";
+
+    if (isNaN(hr)) {
+      return {
+        et: String(timeStr),
+        pt: "TBD PT"
+      };
+    }
+
+    if (isPM && hr !== 12) hr += 12;
+    if (isAM && hr === 12) hr = 0;
+
+    let hrPT = hr - 3;
+
+    if (hrPT < 0) {
+      hrPT += 24;
+    }
+
+    function to12HrString(h, label) {
+      let suffix = h >= 12 ? "PM" : "AM";
+      let displayHr = h % 12 === 0 ? 12 : h % 12;
+      return `${displayHr}:${min} ${suffix} ${label}`;
+    }
+
+    return {
+      et: to12HrString(hr, "ET"),
+      pt: to12HrString(hrPT, "PT")
+    };
+  } catch (e) {
+    return {
+      et: String(timeStr),
+      pt: "TBD PT"
+    };
+  }
+}
+
+// ==========================================
+// MAIN POST ROUTINE
+// ==========================================
+
+function postDailyWorldCupSchedule() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheets()[0];
+  const data = sheet.getDataRange().getDisplayValues();
+
+  const targetDateET = getTargetDateET();
+  const displayDate = getDisplayDateET(targetDateET);
+
+  Logger.log("Running FIFA schedule post.");
+  Logger.log("Spreadsheet ID: " + SPREADSHEET_ID);
+  Logger.log("Slack Channel ID: " + SLACK_CHANNEL_ID);
+  Logger.log("Target date ET: " + targetDateET);
+
+  let blocks = [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "⚽ Today's World Cup Schedule",
+        "emoji": true
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": `*${displayDate}*`
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    }
+  ];
+
+  let matchFound = false;
+  let matchCount = 0;
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+
+    // Expected column layout:
+    // Column C = stage
+    // Column D = group
+    // Column E = team 1
+    // Column F = team 2
+    // Column H = kickoff date ET
+    // Column I = kickoff time ET
+    // Column N = stadium
+    // Column O = city
+
+    const matchDate = String(row[7] || "").trim();
+
+    if (matchDate === targetDateET) {
+      matchFound = true;
+      matchCount++;
+
+      let stage = String(row[2] || "").trim();    // Column C
+      let group = String(row[3] || "").trim();    // Column D
+      let team1 = String(row[4] || "").trim();    // Column E
+      let team2 = String(row[5] || "").trim();    // Column F
+      let rawTime = String(row[8] || "").trim();  // Column I
+      let stadium = String(row[13] || "").trim(); // Column N
+      let city = String(row[14] || "").trim();    // Column O
+
+      let times = formatTimesCleanly(rawTime);
+      let f1 = getFlag(team1);
+      let f2 = getFlag(team2);
+
+      let stageLine = stage || "Match";
+
+      if (group) {
+        stageLine = `${stageLine} — Group ${group}`;
+      }
+
+      blocks.push({
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text":
+            `*${matchCount}. ${f1} ${team1} vs ${f2} ${team2}*\n` +
+            `🕒 ${times.et} / ${times.pt}\n` +
+            `🏟️ ${stadium || "TBD"}\n` +
+            `📍 ${city || "TBD"}\n` +
+            `🏷️ ${stageLine}`
+        }
+      });
+
+      blocks.push({
+        "type": "divider"
+      });
+    }
+  }
+
+  Logger.log("Matches found: " + matchFound);
+  Logger.log("Match count: " + matchCount);
+
+  if (matchFound) {
+    sendSlackBlocks(blocks);
+  } else {
+    Logger.log("No matches found for " + targetDateET + ". No Slack message sent.");
+  }
+}
+
+// ==========================================
+// SLACK POST HELPER
+// ==========================================
+
+function sendSlackBlocks(blocks) {
+  const payload = {
+    channel: SLACK_CHANNEL_ID,
+    blocks: blocks,
+    text: "Today's World Cup Schedule"
+  };
+
+  const options = {
+    method: "post",
+    contentType: "application/json",
+    headers: {
+      "Authorization": "Bearer " + SLACK_BOT_TOKEN
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+
+  const response = UrlFetchApp.fetch("https://slack.com/api/chat.postMessage", options);
+
+  const responseCode = response.getResponseCode();
+  const responseBody = response.getContentText();
+
+  Logger.log("Slack response code: " + responseCode);
+  Logger.log("Slack response body: " + responseBody);
+
+  let result;
+
+  try {
+    result = JSON.parse(responseBody);
+  } catch (e) {
+    throw new Error("Slack response was not valid JSON: " + responseBody);
+  }
+
+  if (!result.ok) {
+    throw new Error("Slack API error: " + result.error);
+  }
+
+  return result;
+}
+
+// ==========================================
+// TEST SLACK POST
+// Run this first to confirm Slack posting works.
+// ==========================================
+
+function testSlackPost() {
+  const blocks = [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "⚽ FIFA Match Bot Test",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "✅ Test message sent successfully from Google Apps Script."
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": `Channel ID: ${SLACK_CHANNEL_ID}`
+        }
+      ]
+    }
+  ];
+
+  sendSlackBlocks(blocks);
+}
+
+// ==========================================
+// DEBUG SHEET DATA
+// Run this if the schedule does not post.
+// ==========================================
+
+function debugSheetData() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheets()[0];
+  const data = sheet.getDataRange().getDisplayValues();
+
+  const targetDateET = getTargetDateET();
+
+  Logger.log("Sheet name: " + sheet.getName());
+  Logger.log("Total rows: " + data.length);
+  Logger.log("Target date ET: " + targetDateET);
+
+  if (data.length > 0) {
+    Logger.log("Header row: " + JSON.stringify(data[0]));
+  }
+
+  let matchCount = 0;
+
+  for (let i = 1; i < data.length; i++) {
+    const matchDate = String(data[i][7] || "").trim();
+
+    if (i <= 10) {
+      Logger.log("Row " + (i + 1) + " Column H date: [" + matchDate + "]");
+    }
+
+    if (matchDate === targetDateET) {
+      matchCount++;
+      Logger.log("Matching row found: " + (i + 1));
+      Logger.log(JSON.stringify(data[i]));
+    }
+  }
+
+  Logger.log("Total matching rows: " + matchCount);
+}
+
+// ==========================================
+// FULL HEALTH CHECK
+// Run this if the app suddenly stops.
+// ==========================================
+
+function healthCheck() {
+  Logger.log("=== FIFA BOT HEALTH CHECK START ===");
+
+  Logger.log("Spreadsheet ID: " + SPREADSHEET_ID);
+  Logger.log("Slack Channel ID: " + SLACK_CHANNEL_ID);
+
+  debugSheetData();
+  testSlackPost();
+
+  Logger.log("=== FIFA BOT HEALTH CHECK END ===");
+}

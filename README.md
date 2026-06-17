@@ -114,9 +114,3 @@ To automate the daily post:
 5. Event source: Time-driven
 6. Type: Day timer
 7. Pick a morning time window
-
-## Important Security Note
-
-Never commit a real Slack bot token to GitHub.
-
-If a token was committed or shared publicly, rotate it immediately in Slack.

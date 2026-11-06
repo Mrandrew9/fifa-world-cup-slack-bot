@@ -4,6 +4,21 @@ Google Apps Script automation that reads FIFA World Cup 2026 match schedule data
 
 This project was built for UAT/testing and can be adapted for production use.
 
+![Google Apps Script](https://img.shields.io/badge/Google%20Apps%20Script-4285F4?logo=google&logoColor=white)
+![Slack](https://img.shields.io/badge/Slack-Block%20Kit-4A154B?logo=slack&logoColor=white)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
+
+## How It Works
+
+```mermaid
+flowchart LR
+    T["Daily time trigger"] --> A["Code.gs<br/>postDailyWorldCupSchedule"]
+    S["Google Sheet<br/>match schedule"] --> A
+    P["Script Properties<br/>token, channel, sheet ID"] -.-> A
+    A --> B["Slack chat.postMessage<br/>Block Kit"]
+    B --> C["#world-cup channel"]
+```
+
 ## Features
 
 * Reads match schedule data from Google Sheets

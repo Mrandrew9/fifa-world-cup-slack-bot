@@ -2,9 +2,12 @@
 // CENTRAL CONFIGURATION & CONFIGS
 // ==========================================
 
-const SLACK_BOT_TOKEN = 'Here ';
-const SLACK_CHANNEL_ID = 'Here';
-const SPREADSHEET_ID = 'Here';
+// Secrets live in Apps Script → Project Settings → Script Properties,
+// never in source control.
+const PROPS = PropertiesService.getScriptProperties();
+const SLACK_BOT_TOKEN = PROPS.getProperty('SLACK_BOT_TOKEN');
+const SLACK_CHANNEL_ID = PROPS.getProperty('SLACK_CHANNEL_ID');
+const SPREADSHEET_ID = PROPS.getProperty('SPREADSHEET_ID');
 
 const TZ_ET = "America/New_York";
 

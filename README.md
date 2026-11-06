@@ -16,6 +16,8 @@ This project was built for UAT/testing and can be adapted for production use.
 
 ## Slack Output Example
 
+![Slack daily schedule post](docs/slack-output.png)
+
 ```text
 ⚽ Today's World Cup Schedule
 Tuesday, June 16, 2026
